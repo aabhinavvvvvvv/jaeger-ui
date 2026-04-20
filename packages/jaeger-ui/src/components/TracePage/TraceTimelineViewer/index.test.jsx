@@ -129,7 +129,8 @@ describe('<TraceTimelineViewer>', () => {
 
   it('does not explode', () => {
     render(<TraceTimelineViewerImpl {...props} />);
-    renderWithRedux(<TraceTimelineViewer {...props} />);
+    expect(screen.getByTestId('virtualized-trace-view-mock')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-header-row-mock')).toBeInTheDocument();
   });
 
   it('derives selectedSpanID from Zustand detailStates', () => {
