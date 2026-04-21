@@ -9,6 +9,9 @@ import { IOtelSpan } from '../../../types/otel';
 
 import './Ticks.css';
 
+// Minimum pixel spacing between adjacent tick labels to prevent overlap.
+const MIN_LABEL_SPACING_PX = 80;
+
 type TicksProps = {
   numTicks: number;
   showLabels?: boolean | TNil;
@@ -17,6 +20,19 @@ type TicksProps = {
 };
 
 export default function Ticks({ endTime = null, numTicks, showLabels = null, startTime = null }: TicksProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!showLabels || !containerRef.current) return undefined;
+    const el = containerRef.current;
+    const observer = new ResizeObserver(entries => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [showLabels]);
+
   let labels: undefined | string[];
   if (showLabels) {
     labels = [];
@@ -26,9 +42,22 @@ export default function Ticks({ endTime = null, numTicks, showLabels = null, sta
       labels.push(formatDuration(durationAtTick as IOtelSpan['duration']));
     }
   }
+
+  // Compute label step as a power of 2 so intermediate labels are evenly spaced.
+  // A step of N means only every Nth tick gets a label (plus always the first and last).
+  let labelStep = 1;
+  if (labels && containerWidth > 0 && numTicks > 1) {
+    const tickSpacing = containerWidth / (numTicks - 1);
+    while (tickSpacing * labelStep < MIN_LABEL_SPACING_PX && labelStep < numTicks) {
+      labelStep *= 2;
+    }
+  }
+
   const ticks: React.ReactNode[] = [];
   for (let i = 0; i < numTicks; i++) {
     const portion = i / (numTicks - 1);
+    const isLast = i === numTicks - 1;
+    const showLabel = labels != null && (i === 0 || isLast || i % labelStep === 0);
     ticks.push(
       <div
         key={portion}
@@ -37,11 +66,15 @@ export default function Ticks({ endTime = null, numTicks, showLabels = null, sta
           left: `${portion * 100}%`,
         }}
       >
-        {labels && (
-          <span className={`Ticks--tickLabel ${portion >= 1 ? 'isEndAnchor' : ''}`}>{labels[i]}</span>
+        {showLabel && (
+          <span className={`Ticks--tickLabel ${portion >= 1 ? 'isEndAnchor' : ''}`}>{labels![i]}</span>
         )}
       </div>
     );
   }
-  return <div className="Ticks">{ticks}</div>;
+  return (
+    <div className="Ticks" ref={containerRef}>
+      {ticks}
+    </div>
+  );
 }
